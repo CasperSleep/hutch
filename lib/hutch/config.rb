@@ -1,4 +1,6 @@
 require 'hutch/error_handlers/logger'
+require 'hutch/setup/queues'
+require 'hutch/setup/register_signal_handlers'
 require 'erb'
 require 'logger'
 
@@ -62,6 +64,7 @@ module Hutch
         consumer_pool_abort_on_exception: false,
 
         serializer: Hutch::Serializers::JSON,
+        setup_classes: [ Hutch::Setup::Queues ]
       }.merge(params)
     end
 

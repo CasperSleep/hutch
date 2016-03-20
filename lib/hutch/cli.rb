@@ -19,7 +19,7 @@ module Hutch
 
       Hutch.logger.info "hutch booted with pid #{::Process.pid}"
 
-      if load_app && start_work_loop == :success
+     if load_app && start_work_loop == :success
         # If we got here, the worker was shut down nicely
         Hutch.logger.info 'hutch shut down gracefully'
         exit 0
@@ -85,7 +85,7 @@ module Hutch
     # gracefully (with a SIGQUIT, SIGTERM or SIGINT).
     def start_work_loop
       Hutch.connect
-      @worker = Hutch::Worker.new(Hutch.broker, Hutch.consumers)
+      @worker = Hutch::Worker.new(Hutch.broker)
       @worker.run
       :success
     rescue ConnectionError, AuthenticationError, WorkerSetupError => ex
