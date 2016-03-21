@@ -1,47 +1,19 @@
-require 'hutch/setup/queues'
+require 'spec_helper'
+require 'factory_helper'
 
-describe Hutch::Setup::Queues do
-  let(:consumer) { double('Consumer', routing_keys: %w( a b c ),
-                          get_queue_name: 'consumer', get_arguments: {},
-                          get_serializer: nil) }
-  let(:consumers) { [consumer, double('Consumer')] }
-  describe '#setup_queues' do
-    it 'sets up queues for each of the consumers' do
-      consumers.each do |consumer|
-        expect(worker).to receive(:setup_queue).with(consumer)
-      end
-      worker.setup_queues
-    end
-  end
+describe Hutch::MessageHandler do
+  let(:broker) { instance_double("Hutch::Broker") }
+  subject(:handler) { described_class.new(broker) }
 
-  describe '#setup_queue' do
-    let(:queue) { double('Queue', bind: nil, subscribe: nil) }
-    before { allow(worker).to receive_messages(consumer_queue: queue) }
-    before { allow(broker).to receive_messages(queue: queue, bind_queue: nil) }
-
-    it 'creates a queue' do
-      expect(broker).to receive(:queue).with(consumer.get_queue_name, consumer.get_arguments).and_return(queue)
-      worker.setup_queue(consumer)
-    end
-
-    it 'binds the queue to each of the routing keys' do
-      expect(broker).to receive(:bind_queue).with(queue, %w( a b c ))
-      worker.setup_queue(consumer)
-    end
-
-    it 'sets up a subscription' do
-      expect(queue).to receive(:subscribe).with(manual_ack: true)
-      worker.setup_queue(consumer)
-    end
-  end
-
-  describe '#handle_message' do
+  describe '#call' do
     let(:payload) { '{}' }
     let(:consumer_instance) { double('Consumer instance') }
     let(:delivery_info) { double('Delivery Info', routing_key: '',
                                  delivery_tag: 'dt') }
     let(:properties) { double('Properties', message_id: nil, content_type: "application/json") }
-    before { allow(consumer).to receive_messages(new: consumer_instance) }
+    let(:consumer) { build_consumer }
+
+    before { allow(consumer).to receive(:new).and_return(consumer_instance) }
     before { allow(broker).to receive(:ack) }
     before { allow(broker).to receive(:nack) }
     before { allow(consumer_instance).to receive(:broker=) }
@@ -50,13 +22,13 @@ describe Hutch::Setup::Queues do
     it 'passes the message to the consumer' do
       expect(consumer_instance).to receive(:process).
         with(an_instance_of(Hutch::Message))
-      worker.handle_message(consumer, delivery_info, properties, payload)
+      handler.call(consumer, delivery_info, properties, payload)
     end
 
     it 'acknowledges the message' do
       allow(consumer_instance).to receive(:process)
       expect(broker).to receive(:ack).with(delivery_info.delivery_tag)
-      worker.handle_message(consumer, delivery_info, properties, payload)
+      handler.call(consumer, delivery_info, properties, payload)
     end
 
     context 'when the consumer fails and a requeue is configured' do
@@ -68,12 +40,12 @@ describe Hutch::Setup::Queues do
           broker.requeue delivery_info.delivery_tag
           true
         }
-        allow(worker).to receive(:error_acknowledgements).and_return([requeuer])
+        allow(handler).to receive(:error_acknowledgements).and_return([requeuer])
         expect(broker).to_not receive(:ack)
         expect(broker).to_not receive(:nack)
         expect(broker).to receive(:requeue)
 
-        worker.handle_message(consumer, delivery_info, properties, payload)
+        handler.call(consumer, delivery_info, properties, payload)
       end
     end
 
@@ -85,12 +57,12 @@ describe Hutch::Setup::Queues do
         Hutch::Config[:error_handlers].each do |backend|
           expect(backend).to receive(:handle)
         end
-        worker.handle_message(consumer, delivery_info, properties, payload)
+        handler.call(consumer, delivery_info, properties, payload)
       end
 
       it 'rejects the message' do
         expect(broker).to receive(:nack).with(delivery_info.delivery_tag)
-        worker.handle_message(consumer, delivery_info, properties, payload)
+        handler.call(consumer, delivery_info, properties, payload)
       end
     end
 
@@ -101,12 +73,12 @@ describe Hutch::Setup::Queues do
         Hutch::Config[:error_handlers].each do |backend|
           expect(backend).to receive(:handle)
         end
-        worker.handle_message(consumer, delivery_info, properties, payload)
+        handler.call(consumer, delivery_info, properties, payload)
       end
 
       it 'rejects the message' do
         expect(broker).to receive(:nack).with(delivery_info.delivery_tag)
-        worker.handle_message(consumer, delivery_info, properties, payload)
+        handler.call(consumer, delivery_info, properties, payload)
       end
     end
   end
@@ -117,14 +89,14 @@ describe Hutch::Setup::Queues do
                                  delivery_tag: 'dt') }
     let(:properties) { double('Properties', message_id: 'abc123') }
 
-    subject { worker.acknowledge_error delivery_info, properties, broker, StandardError.new }
+    subject { handler.acknowledge_error delivery_info, properties, broker, StandardError.new }
 
     it 'stops when it runs a successful acknowledgement' do
       skip_ack = double handle: false
       always_ack = double handle: true
       never_used = double handle: true
 
-      allow(worker).
+      allow(handler).
         to receive(:error_acknowledgements).
         and_return([skip_ack, always_ack, never_used])
 
@@ -136,7 +108,7 @@ describe Hutch::Setup::Queues do
     it 'defaults to nacking' do
       skip_ack = double handle: false
 
-      allow(worker).
+      allow(handler).
         to receive(:error_acknowledgements).
         and_return([skip_ack, skip_ack])
 
@@ -145,3 +117,4 @@ describe Hutch::Setup::Queues do
       subject
     end
   end
+end
