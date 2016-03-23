@@ -86,6 +86,8 @@ module Hutch
 
     private
 
+    attr_accessor :setup_procs
+
     def supported_shutdown_signals
       SHUTDOWN_SIGNALS.keep_if { |s| Signal.list.keys.include? s }.map(&:to_sym)
     end

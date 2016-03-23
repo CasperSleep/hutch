@@ -4,8 +4,8 @@ module Hutch
   class MessageHandler
     include Logging
 
-    def self.call
-      new(Hutch.broker)
+    def self.call *args
+      new(Hutch.broker).call(*args)
     end
 
     def initialize(broker)

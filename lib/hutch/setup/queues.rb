@@ -1,6 +1,7 @@
 require 'hutch/logging'
 require 'hutch/config'
 require 'hutch/acknowledgements/nack_on_all_failures'
+require 'hutch/message_handler'
 
 module Hutch
   module Setup
